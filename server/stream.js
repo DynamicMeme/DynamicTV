@@ -96,8 +96,12 @@ function buildArgs(channel, dir) {
 class StreamManager extends EventEmitter {
   constructor() {
     super();
-    fs.rmSync(HLS_ROOT, { recursive: true, force: true });
+    // Empty the directory rather than removing it: when HLS_ROOT is a tmpfs mount point
+    // (the recommended setup) rmdir on it fails with EBUSY.
     fs.mkdirSync(HLS_ROOT, { recursive: true });
+    for (const entry of fs.readdirSync(HLS_ROOT)) {
+      fs.rmSync(path.join(HLS_ROOT, entry), { recursive: true, force: true });
+    }
     this.channel = null;
     this.run = null;
     this.error = null;
