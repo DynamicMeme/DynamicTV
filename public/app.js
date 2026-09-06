@@ -25,6 +25,17 @@
   const chUpBtn = $('ch-up');
   const chDownBtn = $('ch-down');
   const fullscreenBtn = $('fullscreen');
+  const userBtn = $('user-btn');
+  const userMenu = $('user-menu');
+  const avatarEl = $('avatar');
+  const userNameEl = $('user-name');
+  const chatLog = $('chat-log');
+  const chatForm = $('chat-form');
+  const chatInput = $('chat-input');
+  const chatBadge = $('chat-badge');
+  const presenceEl = $('presence');
+  const passwordDialog = $('password-dialog');
+  const usersDialog = $('users-dialog');
 
   // ---- Sync tuning -----------------------------------------------------------
   // Every device plays at (server clock - targetLatency). Small drift is corrected by nudging
@@ -41,6 +52,7 @@
     /iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS with desktop UA
 
+  let me = null;
   let state = null;
   let targetLatency = 6;
   let playerStreamId = null;
@@ -55,10 +67,31 @@
   let channels = [];
   let filter = '';
   let toastTimer = null;
+  let activeTab = 'channels';
+  let unread = 0;
 
   const serverNow = () => Date.now() + clockOffset;
 
-  // ---- UI helpers ------------------------------------------------------------
+  // ---- Helpers -----------------------------------------------------------------
+  async function api(path, opts) {
+    const res = await fetch(path, opts);
+    if (res.status === 401) {
+      location.replace('/login');
+      throw new Error('Not signed in');
+    }
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || res.statusText);
+    return body;
+  }
+
+  function postJson(path, data) {
+    return api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}) });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
   function setStatus(text, cls) {
     statusEl.textContent = text;
     statusEl.className = 'pill' + (cls ? ' ' + cls : '');
@@ -92,9 +125,225 @@
     toastTimer = setTimeout(() => { toastEl.hidden = true; }, ms);
   }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function isTyping(target) {
+    return target && (target.matches('input, textarea, select, [contenteditable]') || target.closest('dialog[open]'));
   }
+
+  // ---- User menu -----------------------------------------------------------------
+  function renderUser() {
+    if (!me) return;
+    avatarEl.textContent = me.username.slice(0, 1).toUpperCase();
+    userNameEl.textContent = me.username;
+    $('menu-users').hidden = !me.admin;
+  }
+
+  function closeMenu() {
+    userMenu.hidden = true;
+    userBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  userBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const open = userMenu.hidden;
+    userMenu.hidden = !open;
+    userBtn.setAttribute('aria-expanded', String(open));
+  });
+  document.addEventListener('click', (ev) => {
+    if (!userMenu.hidden && !userMenu.contains(ev.target)) closeMenu();
+  });
+
+  $('menu-logout').addEventListener('click', async () => {
+    closeMenu();
+    try {
+      await postJson('/api/auth/logout');
+    } finally {
+      location.replace('/login');
+    }
+  });
+
+  $('menu-password').addEventListener('click', () => {
+    closeMenu();
+    openDialog(passwordDialog);
+  });
+
+  $('menu-users').addEventListener('click', () => {
+    closeMenu();
+    openDialog(usersDialog);
+    loadUsers();
+  });
+
+  // ---- Dialogs -------------------------------------------------------------------
+  function openDialog(dialog) {
+    const err = dialog.querySelector('.form-error');
+    if (err) err.hidden = true;
+    for (const f of dialog.querySelectorAll('form')) f.reset();
+    dialog.showModal();
+  }
+
+  for (const dialog of document.querySelectorAll('dialog')) {
+    for (const btn of dialog.querySelectorAll('[data-close]')) btn.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('click', (ev) => {
+      if (ev.target === dialog) dialog.close(); // click on the backdrop
+    });
+  }
+
+  function showFormError(form, text) {
+    const err = form.querySelector('.form-error');
+    err.textContent = text;
+    err.hidden = false;
+  }
+
+  $('password-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const form = ev.target;
+    const data = new FormData(form);
+    if (data.get('next') !== data.get('confirm')) return showFormError(form, 'New passwords do not match');
+    try {
+      await postJson('/api/auth/password', { current: data.get('current'), next: data.get('next') });
+      passwordDialog.close();
+      toast('Password changed');
+    } catch (err) {
+      showFormError(form, err.message);
+    }
+  });
+
+  async function loadUsers() {
+    const list = $('users-list');
+    list.innerHTML = '<div class="hint">Loading…</div>';
+    try {
+      const users = await api('/api/users');
+      list.innerHTML = '';
+      for (const u of users) {
+        const row = document.createElement('div');
+        row.className = 'user-row';
+        row.innerHTML =
+          `<span class="avatar small">${escapeHtml(u.username.slice(0, 1).toUpperCase())}</span>` +
+          `<span class="user-row-name">${escapeHtml(u.username)}${u.admin ? '<span class="tag">admin</span>' : ''}${u.id === me.id ? '<span class="tag you">you</span>' : ''}</span>` +
+          `<button class="btn text" data-act="reset">Reset password</button>` +
+          (u.id === me.id ? '' : `<button class="btn text danger" data-act="delete">Remove</button>`);
+        row.querySelector('[data-act="reset"]').addEventListener('click', async () => {
+          const pw = prompt(`New password for ${u.username}:`);
+          if (!pw) return;
+          try {
+            await postJson(`/api/users/${u.id}/password`, { password: pw });
+            toast(`Password reset for ${u.username}`);
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+        const del = row.querySelector('[data-act="delete"]');
+        if (del) {
+          del.addEventListener('click', async () => {
+            if (!confirm(`Remove ${u.username}?`)) return;
+            try {
+              await api(`/api/users/${u.id}`, { method: 'DELETE' });
+              loadUsers();
+            } catch (err) {
+              alert(err.message);
+            }
+          });
+        }
+        list.appendChild(row);
+      }
+    } catch (err) {
+      list.innerHTML = `<div class="form-error">${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  $('add-user-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const form = ev.target;
+    const data = new FormData(form);
+    try {
+      await postJson('/api/users', { username: data.get('username'), password: data.get('password'), admin: data.get('admin') === 'on' });
+      form.reset();
+      form.querySelector('.form-error').hidden = true;
+      toast('User added');
+      loadUsers();
+    } catch (err) {
+      showFormError(form, err.message);
+    }
+  });
+
+  // ---- Sidebar tabs ----------------------------------------------------------------
+  function selectTab(name) {
+    activeTab = name;
+    for (const tab of document.querySelectorAll('.tab')) {
+      const on = tab.dataset.tab === name;
+      tab.classList.toggle('active', on);
+      tab.setAttribute('aria-selected', String(on));
+    }
+    for (const panel of document.querySelectorAll('.panel')) panel.classList.toggle('active', panel.id === `panel-${name}`);
+    if (name === 'chat') {
+      unread = 0;
+      updateBadge();
+      scrollChat(true);
+      if (matchMedia('(min-width: 960px)').matches) chatInput.focus();
+    }
+  }
+  for (const tab of document.querySelectorAll('.tab')) tab.addEventListener('click', () => selectTab(tab.dataset.tab));
+
+  function updateBadge() {
+    chatBadge.hidden = unread === 0;
+    chatBadge.textContent = unread > 99 ? '99+' : String(unread);
+  }
+
+  // ---- Chat ------------------------------------------------------------------------
+  function fmtTime(ts) {
+    const d = new Date(ts);
+    const sameDay = d.toDateString() === new Date().toDateString();
+    return sameDay
+      ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+      : d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+
+  function chatAtBottom() {
+    return chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight < 40;
+  }
+
+  function scrollChat(force) {
+    if (force || chatAtBottom()) chatLog.scrollTop = chatLog.scrollHeight;
+  }
+
+  function appendChat(m) {
+    const el = document.createElement('div');
+    const mine = me && m.user === me.username;
+    el.className = 'msg' + (m.system ? ' system' : '') + (mine ? ' mine' : '');
+    el.innerHTML = m.system
+      ? `<span class="who">${escapeHtml(m.user)}</span> ${escapeHtml(m.text)} <span class="time">${fmtTime(m.ts)}</span>`
+      : `<div class="meta"><span class="who">${escapeHtml(m.user)}</span><span class="time">${fmtTime(m.ts)}</span></div><div class="text">${escapeHtml(m.text)}</div>`;
+    chatLog.appendChild(el);
+  }
+
+  function renderChatHistory(list) {
+    chatLog.innerHTML = '';
+    for (const m of list) appendChat(m);
+    scrollChat(true);
+  }
+
+  function onChatMessage(m) {
+    const stick = chatAtBottom() || (me && m.user === me.username);
+    appendChat(m);
+    scrollChat(stick);
+    if (!m.system && (activeTab !== 'chat' || document.hidden) && !(me && m.user === me.username)) {
+      unread += 1;
+      updateBadge();
+    }
+  }
+
+  function renderPresence(users) {
+    presenceEl.innerHTML = users.length
+      ? `<span class="presence-label">Watching now</span>` + users.map((u) => `<span class="chip${me && u === me.username ? ' me' : ''}">${escapeHtml(u)}</span>`).join('')
+      : '';
+  }
+
+  chatForm.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const text = chatInput.value.trim();
+    if (!text) return;
+    if (wsSend({ type: 'chat', text })) chatInput.value = '';
+    else toast('Not connected');
+  });
 
   // ---- Channel list ----------------------------------------------------------
   function channelMatches(ch) {
@@ -168,10 +417,7 @@
 
   async function loadChannels(refresh) {
     try {
-      const res = await fetch('/api/channels' + (refresh ? '?refresh=1' : ''));
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || res.statusText);
-      channels = body;
+      channels = await api('/api/channels' + (refresh ? '?refresh=1' : ''));
       renderChannels();
       if (refresh) toast(`Lineup refreshed: ${channels.length} channels`);
     } catch (err) {
@@ -204,22 +450,45 @@
       } catch {
         return;
       }
-      if (msg.type === 'pong') {
-        const now = Date.now();
-        const rtt = now - msg.clientTime;
-        const offset = msg.serverTime - (msg.clientTime + rtt / 2);
-        clockSamples.push({ rtt, offset });
-        clockSamples = clockSamples.slice(-10);
-        clockOffset = clockSamples.reduce((best, s) => (s.rtt < best.rtt ? s : best)).offset;
-      } else if (msg.type === 'state') {
-        applyState(msg.state);
-      } else if (msg.type === 'error') {
-        toast(msg.message);
+      switch (msg.type) {
+        case 'pong': {
+          const now = Date.now();
+          const rtt = now - msg.clientTime;
+          const offset = msg.serverTime - (msg.clientTime + rtt / 2);
+          clockSamples.push({ rtt, offset });
+          clockSamples = clockSamples.slice(-10);
+          clockOffset = clockSamples.reduce((best, s) => (s.rtt < best.rtt ? s : best)).offset;
+          break;
+        }
+        case 'state':
+          applyState(msg.state);
+          break;
+        case 'chat_history':
+          renderChatHistory(msg.messages || []);
+          break;
+        case 'chat':
+          onChatMessage(msg.message);
+          break;
+        case 'presence':
+          renderPresence(msg.users || []);
+          break;
+        case 'error':
+          toast(msg.message);
+          break;
+        default:
+          break;
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (ev) => {
       setStatus('offline', 'err');
+      renderPresence([]);
+      if (ev.code === 4001) {
+        location.replace('/login');
+        return;
+      }
+      // If the session expired, api() bounces us to the login page instead of reconnecting forever.
+      api('/api/auth/me').catch(() => {});
       setTimeout(connect, wsBackoff);
       wsBackoff = Math.min(wsBackoff * 2, 15000);
     };
@@ -241,13 +510,11 @@
 
   function tune(number) {
     if (!number) return;
-    if (!wsSend({ type: 'tune', channel: number })) {
-      fetch('/api/tune', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: number }) });
-    }
+    if (!wsSend({ type: 'tune', channel: number })) postJson('/api/tune', { channel: number }).catch((err) => toast(err.message));
   }
 
   function stop() {
-    if (!wsSend({ type: 'stop' })) fetch('/api/stop', { method: 'POST' });
+    if (!wsSend({ type: 'stop' })) postJson('/api/stop').catch((err) => toast(err.message));
   }
 
   stopBtn.addEventListener('click', stop);
@@ -268,7 +535,7 @@
   fullscreenBtn.addEventListener('click', toggleFullscreen);
 
   document.addEventListener('keydown', (ev) => {
-    if (ev.target === searchEl || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    if (isTyping(ev.target) || ev.metaKey || ev.ctrlKey || ev.altKey) return;
     switch (ev.key) {
       case 'ArrowUp':
       case 'PageUp':
@@ -287,7 +554,13 @@
         video.muted = !video.muted;
         break;
       case '/':
+        selectTab('channels');
         searchEl.focus();
+        break;
+      case 'c':
+      case 'C':
+        selectTab('chat');
+        chatInput.focus();
         break;
       default:
         return;
@@ -367,6 +640,10 @@
       hls.on(Hls.Events.ERROR, (_evt, data) => {
         if (!data.fatal) return;
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          if (data.response && data.response.code === 401) {
+            location.replace('/login');
+            return;
+          }
           hls.startLoad();
         } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
           hls.recoverMediaError();
@@ -506,12 +783,24 @@
     if (!document.hidden) {
       ping();
       syncTick();
+      if (activeTab === 'chat') {
+        unread = 0;
+        updateBadge();
+      }
     }
   });
 
   // ---- Boot ------------------------------------------------------------------
-  connect();
-  loadChannels(false);
+  (async () => {
+    try {
+      me = (await api('/api/auth/me')).user;
+    } catch {
+      return; // api() already redirected to /login
+    }
+    renderUser();
+    connect();
+    loadChannels(false);
+  })();
 
   // Debug hook for previewing the UI without a server.
   window.__dtv = {
@@ -520,5 +809,13 @@
       renderChannels();
     },
     applyState,
+    setUser(u) {
+      me = u;
+      renderUser();
+    },
+    chat(list) {
+      renderChatHistory(list);
+    },
+    presence: renderPresence,
   };
 })();

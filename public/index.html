@@ -27,6 +27,18 @@
       <span class="np-name">Not tuned</span>
     </div>
     <div id="status" class="pill">connecting…</div>
+    <div class="user-wrap">
+      <button id="user-btn" class="user-btn" aria-haspopup="menu" aria-expanded="false">
+        <span id="avatar" class="avatar">?</span>
+        <span id="user-name" class="user-name"></span>
+      </button>
+      <div id="user-menu" class="menu" role="menu" hidden>
+        <button id="menu-password" class="menu-item" role="menuitem">Change password</button>
+        <button id="menu-users" class="menu-item" role="menuitem" hidden>Manage users</button>
+        <div class="menu-sep"></div>
+        <button id="menu-logout" class="menu-item" role="menuitem">Log out</button>
+      </div>
+    </div>
   </header>
 
   <main class="layout">
@@ -79,18 +91,69 @@
     </section>
 
     <aside class="sidebar">
-      <div class="sidebar-head">
-        <h2>Channels</h2>
-        <button id="refresh" class="btn text" title="Reload lineup from the HDHomeRun">Refresh</button>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="channels" role="tab" aria-selected="true">Channels</button>
+        <button class="tab" data-tab="chat" role="tab" aria-selected="false">Chat <span id="chat-badge" class="badge" hidden></span></button>
       </div>
-      <label class="search">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        <input id="search" type="search" placeholder="Search channels" autocomplete="off" spellcheck="false">
-      </label>
-      <p class="hint">One shared stream. Changing the channel here changes it on every device.</p>
-      <div id="channels" class="channels"><div class="hint">Loading lineup…</div></div>
+
+      <div id="panel-channels" class="panel active">
+        <div class="sidebar-head">
+          <label class="search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <input id="search" type="search" placeholder="Search channels" autocomplete="off" spellcheck="false">
+          </label>
+          <button id="refresh" class="btn text" title="Reload lineup from the HDHomeRun">Refresh</button>
+        </div>
+        <p class="hint">One shared stream. Changing the channel here changes it for everyone.</p>
+        <div id="channels" class="channels"><div class="hint">Loading lineup…</div></div>
+      </div>
+
+      <div id="panel-chat" class="panel">
+        <div id="presence" class="presence"></div>
+        <div id="chat-log" class="chat-log"></div>
+        <form id="chat-form" class="chat-form" autocomplete="off">
+          <input id="chat-input" maxlength="500" placeholder="Say something…" autocomplete="off">
+          <button class="btn primary" type="submit" aria-label="Send">
+            <svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2-7z" fill="currentColor"/></svg>
+          </button>
+        </form>
+      </div>
     </aside>
   </main>
+
+  <dialog id="password-dialog" class="dialog">
+    <form method="dialog" class="form" id="password-form">
+      <h2>Change password</h2>
+      <label class="field"><span>Current password</span><input name="current" type="password" autocomplete="current-password" required></label>
+      <label class="field"><span>New password</span><input name="next" type="password" autocomplete="new-password" minlength="6" required></label>
+      <label class="field"><span>Confirm new password</span><input name="confirm" type="password" autocomplete="new-password" required></label>
+      <div class="form-error" hidden></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="users-dialog" class="dialog wide">
+    <div class="form">
+      <h2>Users</h2>
+      <div id="users-list" class="users-list"></div>
+      <form id="add-user-form" class="add-user" autocomplete="off">
+        <h3>Add a user</h3>
+        <div class="row">
+          <input name="username" placeholder="Username" autocapitalize="off" spellcheck="false" required>
+          <input name="password" type="password" placeholder="Password (6+ chars)" autocomplete="new-password" minlength="6" required>
+        </div>
+        <label class="check"><input name="admin" type="checkbox"> Admin (can manage users)</label>
+        <div class="form-error" hidden></div>
+        <div class="dialog-actions">
+          <button type="button" class="btn" data-close>Close</button>
+          <button type="submit" class="btn primary">Add user</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
 
   <script src="vendor/hls.min.js"></script>
   <script src="app.js"></script>

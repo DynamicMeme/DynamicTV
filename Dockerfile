@@ -19,7 +19,11 @@ COPY public ./public
 
 ENV NODE_ENV=production \
     PORT=8080 \
-    HLS_ROOT=/tmp/hls
+    HLS_ROOT=/tmp/hls \
+    DATA_DIR=/data
+
+RUN mkdir -p /data
+VOLUME ["/data"]
 
 EXPOSE 8080
 CMD ["node", "server/index.js"]

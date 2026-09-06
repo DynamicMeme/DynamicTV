@@ -10,7 +10,11 @@ on your network, with playback kept in sync across every device.
   open the page there, and be at the same moment in the show. Devices drift by well under a second.
 - **Plays anywhere.** Broadcast MPEG-2 / AC-3 is transcoded once to H.264 / AAC HLS, which works in
   Safari (iPhone, iPad, Mac), Chrome, Edge, Firefox and Android.
-- **Nothing hits the disk.** Segments live in a RAM tmpfs and roll off after a minute.
+- **Accounts and chat.** A login protects everything (video, API, WebSocket). The first visit creates
+  the admin account, who then adds everyone else. A chat tab shows who is watching and attributes
+  channel changes to the person who made them.
+- **Nothing hits the disk** except accounts and chat history in `/data`. Segments live in a RAM tmpfs
+  and roll off after a minute.
 
 ## Quick start
 
@@ -27,8 +31,10 @@ Edit `.env` and set `HDHR_HOST` to the tuner's IP (find it in the HDHomeRun app 
 docker compose up -d --build
 ```
 
-Open `http://<server-ip>:8080` on any device and pick a channel. Tuning takes about six seconds
-the first time, then everyone who opens the page joins at the shared position.
+Open `http://<server-ip>:8080`. The first visit asks you to create the admin account; do this before
+exposing the server to the internet, since the setup page is open until an admin exists. Then pick a
+channel. Tuning takes about six seconds the first time, and everyone who opens the page afterwards
+joins at the shared position.
 
 To see it work without a tuner, set `DEMO_CHANNEL=1` and pick "Test pattern".
 
@@ -53,11 +59,13 @@ docker run -d --name dynamictv --init --restart unless-stopped \
    exposes that path as `config\plugins\dockerMan\templates-user`.
 3. In the Unraid web UI open **Docker**, click **Add Container**, and choose **DynamicTV** from
    the **Template** dropdown (under "User templates").
-4. Fill in **HDHomeRun IP**, adjust the port if 8080 is taken, and click **Apply**.
-5. Click the container icon and choose **WebUI**.
+4. Fill in **HDHomeRun IP**, adjust the port if 8080 is taken, leave the data path at
+   `/mnt/user/appdata/dynamictv`, and click **Apply**.
+5. Click the container icon and choose **WebUI**, then create the admin account.
 
 Without the template, the same thing by hand in **Add Container**: Repository
-`ghcr.io/dynamicmeme/dynamictv:latest`, a port mapping for 8080, a variable `HDHR_HOST`, and
+`ghcr.io/dynamicmeme/dynamictv:latest`, a port mapping for 8080, a path mapping from
+`/mnt/user/appdata/dynamictv` to `/data`, a variable `HDHR_HOST`, and
 `--init --tmpfs /tmp/hls:size=256m` in **Extra Parameters** (Advanced View).
 
 For Intel/AMD hardware encoding on Unraid, click **Add another Path, Port, Variable, Label or
@@ -85,6 +93,10 @@ All settings are environment variables (see `docker-compose.yml` / `.env.example
 | `DEMO_CHANNEL` | `0` | `1` adds a built-in test pattern channel. |
 | `FFMPEG_VIDEO_ARGS` | | Replaces the whole software video encoder chain (see hardware encoding). |
 | `LOG_FFMPEG_ARGS` | | Set to `1` to log the exact ffmpeg command line. |
+| `DATA_DIR` | `/data` | Accounts, session secret and chat history. Mount it or they are lost on restart. |
+| `SESSION_DAYS` | `30` | How long a login lasts. |
+| `CHAT_HISTORY` | `300` | Messages kept. |
+| `TRUST_PROXY` | private networks | Express `trust proxy` setting, so `req.ip` and HTTPS detection are right behind a reverse proxy. |
 | `PORT` | `8080` | Listening port inside the container. |
 
 ### CPU usage

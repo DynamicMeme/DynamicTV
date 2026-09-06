@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0e12">
+  <title>Sign in · DynamicTV</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='7' width='26' height='18' rx='4' fill='%235aa9ff'/%3E%3Crect x='6' y='10' width='20' height='12' rx='2' fill='%230b0e12'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23ff4d4d'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="auth-page">
+  <main class="auth-card">
+    <div class="brand big">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="3" y="7" width="26" height="18" rx="4" fill="currentColor"/>
+        <rect x="6" y="10" width="20" height="12" rx="2" fill="#0b0e12"/>
+        <circle cx="16" cy="16" r="3" fill="#ff4d4d"/>
+      </svg>
+      <span>DynamicTV</span>
+    </div>
+    <h1 id="title">Sign in</h1>
+    <p id="subtitle" class="hint">Use the account your admin set up for you.</p>
+
+    <form id="form" class="form" autocomplete="on">
+      <label class="field">
+        <span>Username</span>
+        <input id="username" name="username" autocomplete="username" autocapitalize="off" spellcheck="false" required autofocus>
+      </label>
+      <label class="field">
+        <span>Password</span>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <label id="confirm-row" class="field" hidden>
+        <span>Confirm password</span>
+        <input id="confirm" type="password" autocomplete="new-password">
+      </label>
+      <div id="error" class="form-error" hidden></div>
+      <button id="submit" class="btn primary wide" type="submit">Sign in</button>
+    </form>
+  </main>
+  <script src="login.js"></script>
+</body>
+</html>

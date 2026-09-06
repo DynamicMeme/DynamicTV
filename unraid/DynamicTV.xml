@@ -13,6 +13,7 @@
   <WebUI>http://[IP]:[PORT:8080]</WebUI>
   <ExtraParams>--init --tmpfs /tmp/hls:size=256m</ExtraParams>
   <Config Name="Web UI port" Target="8080" Default="8080" Mode="tcp" Description="Port the player is served on." Type="Port" Display="always" Required="true" Mask="false">8080</Config>
+  <Config Name="Data (accounts, chat history)" Target="/data" Default="/mnt/user/appdata/dynamictv" Mode="rw" Description="User accounts, session secret and chat history live here." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/dynamictv</Config>
   <Config Name="HDHomeRun IP" Target="HDHR_HOST" Default="" Mode="" Description="IP address of your HDHomeRun tuner, e.g. 192.168.1.50. Leave blank to auto-discover via SiliconDust's service (needs internet)." Type="Variable" Display="always" Required="false" Mask="false"></Config>
   <Config Name="Video height" Target="VIDEO_HEIGHT" Default="720" Mode="" Description="Output resolution height. 720 is a good CPU/quality balance, 1080 for full quality, 480 for weak hardware, 0 to keep the broadcast resolution." Type="Variable" Display="always" Required="false" Mask="false">720</Config>
   <Config Name="Target latency (s)" Target="TARGET_LATENCY" Default="6" Mode="" Description="Seconds behind the encoder every device plays. Raise to 8-10 on flaky Wi-Fi." Type="Variable" Display="always" Required="false" Mask="false">6</Config>

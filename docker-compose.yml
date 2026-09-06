@@ -25,8 +25,10 @@ services:
       DEMO_CHANNEL: ${DEMO_CHANNEL:-0}
       # Optional full override of the ffmpeg video encoder arguments (see README for VAAPI/NVENC).
       FFMPEG_VIDEO_ARGS: ${FFMPEG_VIDEO_ARGS:-}
-    # HLS segments live in RAM; nothing is written to disk (~35 MB in use at 4 Mbps).
     volumes:
+      # Accounts, session secret and chat history. Keep this or everyone is signed out on restart.
+      - ./data:/data
+      # HLS segments live in RAM; nothing is written to disk (~35 MB in use at 4 Mbps).
       - type: tmpfs
         target: /tmp/hls
         tmpfs:
