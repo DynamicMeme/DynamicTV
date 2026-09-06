@@ -22,6 +22,9 @@
   const SEEK_THRESHOLD = 2.5; // seconds of error beyond which we jump instead of nudge
   const LIVE_GUARD = 1.0; // never play closer than this to the newest segment
   const TICK_MS = 500;
+  const IS_IOS =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS with desktop UA
 
   let state = null;
   let targetLatency = 6;
@@ -29,6 +32,7 @@
   let mode = null; // 'native' | 'hlsjs'
   let hls = null;
   let holding = false; // we paused ourselves while waiting for the shared timeline to reach the stream
+  let needsInitialSeek = false; // jump to the shared position once after each load
   let clockOffset = 0; // serverTime - clientTime (ms)
   let clockSamples = [];
   let ws = null;
@@ -215,14 +219,19 @@
   function load(streamId) {
     unload();
     playerStreamId = streamId;
+    needsInitialSeek = true;
     const url = `/hls/${streamId}/stream.m3u8`;
 
-    // Safari (macOS/iOS) plays HLS natively and exposes getStartDate(); everything else uses hls.js.
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    // iOS Safari plays HLS natively and exposes getStartDate() for wall-clock mapping. Everywhere
+    // else we use hls.js: recent Chromium also claims native HLS support ("maybe") but has no
+    // getStartDate() and, on desktop, did not start playback at all.
+    const nativeHls = video.canPlayType('application/vnd.apple.mpegurl');
+    const hlsjsOk = window.Hls && Hls.isSupported();
+    if (nativeHls && (IS_IOS || !hlsjsOk)) {
       mode = 'native';
       video.src = url;
       video.load();
-    } else if (window.Hls && Hls.isSupported()) {
+    } else if (hlsjsOk) {
       mode = 'hlsjs';
       hls = new Hls({
         liveSyncDuration: targetLatency,
@@ -322,6 +331,7 @@
 
     if (holding) {
       holding = false;
+      needsInitialSeek = false;
       video.currentTime = target;
       tryPlay();
       return;
@@ -333,7 +343,9 @@
     }
 
     const err = video.currentTime - target; // >0: ahead of the shared timeline, <0: behind
-    if (Math.abs(err) > SEEK_THRESHOLD) {
+    if (needsInitialSeek || Math.abs(err) > SEEK_THRESHOLD) {
+      // First alignment after load jumps straight to the shared position; after that we only nudge.
+      needsInitialSeek = false;
       video.currentTime = target;
       video.playbackRate = 1;
       setSync('re-syncing…', 'warn');
