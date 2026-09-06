@@ -1,15 +1,30 @@
 (() => {
   'use strict';
 
-  const video = document.getElementById('video');
-  const tapBtn = document.getElementById('tap');
-  const messageEl = document.getElementById('message');
-  const statusEl = document.getElementById('status');
-  const syncEl = document.getElementById('sync');
-  const nowEl = document.getElementById('now-playing');
-  const channelsEl = document.getElementById('channels');
-  const stopBtn = document.getElementById('stop');
-  const refreshBtn = document.getElementById('refresh');
+  const $ = (id) => document.getElementById(id);
+  const video = $('video');
+  const overlay = $('overlay');
+  const overlaySpinner = $('overlay-spinner');
+  const overlayIcon = $('overlay-icon');
+  const overlayTitle = $('overlay-title');
+  const overlayText = $('overlay-text');
+  const tapBtn = $('tap');
+  const toastEl = $('toast');
+  const statusEl = $('status');
+  const syncEl = $('sync');
+  const syncText = $('sync-text');
+  const syncDetail = $('sync-detail');
+  const nowEl = $('now-playing');
+  const npNumber = nowEl.querySelector('.np-number');
+  const npName = nowEl.querySelector('.np-name');
+  const liveDot = nowEl.querySelector('.live-dot');
+  const channelsEl = $('channels');
+  const searchEl = $('search');
+  const stopBtn = $('stop');
+  const refreshBtn = $('refresh');
+  const chUpBtn = $('ch-up');
+  const chDownBtn = $('ch-down');
+  const fullscreenBtn = $('fullscreen');
 
   // ---- Sync tuning -----------------------------------------------------------
   // Every device plays at (server clock - targetLatency). Small drift is corrected by nudging
@@ -38,6 +53,8 @@
   let ws = null;
   let wsBackoff = 1000;
   let channels = [];
+  let filter = '';
+  let toastTimer = null;
 
   const serverNow = () => Date.now() + clockOffset;
 
@@ -47,48 +64,106 @@
     statusEl.className = 'pill' + (cls ? ' ' + cls : '');
   }
 
-  function setSync(text, cls) {
-    syncEl.textContent = text;
-    syncEl.className = 'sync' + (cls ? ' ' + cls : '');
+  function setSync(text, cls, detail) {
+    syncText.textContent = text;
+    syncDetail.textContent = detail || '';
+    syncEl.title = detail || '';
+    syncEl.className = 'sync-chip' + (cls ? ' ' + cls : '');
   }
 
-  function showMessage(text) {
-    if (!text) {
-      messageEl.hidden = true;
-      return;
-    }
-    messageEl.textContent = text;
-    messageEl.hidden = false;
+  function showOverlay({ title, text, spinner = false, icon = true, error = false } = {}) {
+    overlayTitle.textContent = title || '';
+    overlayText.textContent = text || '';
+    overlaySpinner.hidden = !spinner;
+    overlayIcon.hidden = !icon || spinner;
+    overlay.classList.toggle('error', error);
+    overlay.hidden = false;
+  }
+
+  function hideOverlay() {
+    overlay.hidden = true;
+    tapBtn.hidden = true;
+  }
+
+  function toast(text, ms = 3500) {
+    toastEl.textContent = text;
+    toastEl.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toastEl.hidden = true; }, ms);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // ---- Channel list ----------------------------------------------------------
+  function channelMatches(ch) {
+    if (!filter) return true;
+    return ch.number.toLowerCase().includes(filter) || ch.name.toLowerCase().includes(filter);
+  }
+
+  function groupKey(ch) {
+    const major = ch.number.split(/[.-]/)[0];
+    return /^\d+$/.test(major) ? major : ch.number;
   }
 
   function renderChannels() {
     channelsEl.innerHTML = '';
-    if (!channels.length) {
-      channelsEl.innerHTML = '<div class="hint">No channels found.</div>';
+    const visible = channels.filter(channelMatches);
+    if (!visible.length) {
+      channelsEl.innerHTML = `<div class="empty">${channels.length ? 'No channels match.' : 'No channels found.'}</div>`;
       return;
     }
-    for (const ch of channels) {
-      const btn = document.createElement('button');
-      btn.className = 'channel';
-      btn.dataset.number = ch.number;
-      btn.innerHTML =
-        `<span class="num">${escapeHtml(ch.number)}${ch.hd ? '<span class="hd">HD</span>' : ''}</span>` +
-        `<span class="name">${escapeHtml(ch.name)}</span>`;
-      btn.addEventListener('click', () => tune(ch.number));
-      channelsEl.appendChild(btn);
+
+    const groups = new Map();
+    for (const ch of visible) {
+      const key = groupKey(ch);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(ch);
+    }
+
+    for (const [key, list] of groups) {
+      const group = document.createElement('div');
+      group.className = 'group';
+      const primary = list.find((c) => /^\d+[.-]1$/.test(c.number)) || list[0];
+      const title = document.createElement('div');
+      title.className = 'group-title';
+      title.textContent = /^\d+$/.test(key) ? `${key} · ${primary.name}` : key;
+      group.appendChild(title);
+
+      const grid = document.createElement('div');
+      grid.className = 'group-list';
+      for (const ch of list) {
+        const btn = document.createElement('button');
+        btn.className = 'channel';
+        btn.dataset.number = ch.number;
+        btn.title = `${ch.number} ${ch.name}`;
+        btn.innerHTML =
+          `<span class="num">${escapeHtml(ch.number)}${ch.hd ? '<span class="hd">HD</span>' : ''}</span>` +
+          `<span class="name">${escapeHtml(ch.name)}</span>` +
+          `<span class="indicator"><i></i><i></i><i></i></span>`;
+        btn.addEventListener('click', () => tune(ch.number));
+        grid.appendChild(btn);
+      }
+      group.appendChild(grid);
+      channelsEl.appendChild(group);
     }
     highlightChannel();
   }
 
   function highlightChannel() {
     const current = state && state.channel ? state.channel.number : null;
+    const tuning = !!(state && state.status === 'starting');
     for (const el of channelsEl.querySelectorAll('.channel')) {
-      el.classList.toggle('active', el.dataset.number === current);
+      const active = el.dataset.number === current;
+      el.classList.toggle('active', active);
+      el.classList.toggle('tuning', active && tuning);
     }
-  }
-
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const idx = channels.findIndex((c) => c.number === current);
+    chUpBtn.disabled = !channels.length;
+    chDownBtn.disabled = !channels.length;
+    chUpBtn.dataset.target = channels.length ? channels[(idx + 1) % channels.length].number : '';
+    chDownBtn.dataset.target = channels.length ? channels[(idx - 1 + channels.length) % channels.length].number : '';
   }
 
   async function loadChannels(refresh) {
@@ -98,10 +173,16 @@
       if (!res.ok) throw new Error(body.error || res.statusText);
       channels = body;
       renderChannels();
+      if (refresh) toast(`Lineup refreshed: ${channels.length} channels`);
     } catch (err) {
-      channelsEl.innerHTML = `<div class="hint">Could not load lineup: ${escapeHtml(err.message)}</div>`;
+      channelsEl.innerHTML = `<div class="empty">Could not load lineup: ${escapeHtml(err.message)}</div>`;
     }
   }
+
+  searchEl.addEventListener('input', () => {
+    filter = searchEl.value.trim().toLowerCase();
+    renderChannels();
+  });
 
   // ---- WebSocket -------------------------------------------------------------
   function connect() {
@@ -133,13 +214,12 @@
       } else if (msg.type === 'state') {
         applyState(msg.state);
       } else if (msg.type === 'error') {
-        showMessage(msg.message);
-        setTimeout(() => showMessage(''), 4000);
+        toast(msg.message);
       }
     };
 
     ws.onclose = () => {
-      setStatus('disconnected', 'err');
+      setStatus('offline', 'err');
       setTimeout(connect, wsBackoff);
       wsBackoff = Math.min(wsBackoff * 2, 15000);
     };
@@ -160,44 +240,88 @@
   setInterval(ping, 5000);
 
   function tune(number) {
+    if (!number) return;
     if (!wsSend({ type: 'tune', channel: number })) {
       fetch('/api/tune', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: number }) });
     }
   }
 
-  stopBtn.addEventListener('click', () => {
+  function stop() {
     if (!wsSend({ type: 'stop' })) fetch('/api/stop', { method: 'POST' });
-  });
+  }
+
+  stopBtn.addEventListener('click', stop);
   refreshBtn.addEventListener('click', () => loadChannels(true));
+  chUpBtn.addEventListener('click', () => tune(chUpBtn.dataset.target));
+  chDownBtn.addEventListener('click', () => tune(chDownBtn.dataset.target));
+
+  function toggleFullscreen() {
+    const wrap = video.parentElement;
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else if (wrap.requestFullscreen) {
+      wrap.requestFullscreen();
+    } else if (video.webkitEnterFullscreen) {
+      video.webkitEnterFullscreen(); // iOS
+    }
+  }
+  fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+  document.addEventListener('keydown', (ev) => {
+    if (ev.target === searchEl || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    switch (ev.key) {
+      case 'ArrowUp':
+      case 'PageUp':
+        tune(chUpBtn.dataset.target);
+        break;
+      case 'ArrowDown':
+      case 'PageDown':
+        tune(chDownBtn.dataset.target);
+        break;
+      case 'f':
+      case 'F':
+        toggleFullscreen();
+        break;
+      case 'm':
+      case 'M':
+        video.muted = !video.muted;
+        break;
+      case '/':
+        searchEl.focus();
+        break;
+      default:
+        return;
+    }
+    ev.preventDefault();
+  });
 
   // ---- State -> player -------------------------------------------------------
   function applyState(s) {
     state = s;
     if (typeof s.targetLatency === 'number') targetLatency = s.targetLatency;
-    nowEl.textContent = s.channel ? `${s.channel.number}  ${s.channel.name}` : 'Not tuned';
+    npNumber.textContent = s.channel ? s.channel.number : '';
+    npName.textContent = s.channel ? s.channel.name : 'Not tuned';
+    liveDot.hidden = !(s.channel && s.status === 'live');
     highlightChannel();
 
     if (!s.channel) {
       unload();
       setStatus('idle');
-      showMessage('Pick a channel to start the shared stream.');
+      showOverlay({ title: 'Pick a channel', text: 'Everyone on the network watches the same stream, in sync.' });
       return;
     }
 
     if (s.status === 'live') {
       setStatus('live', 'live');
-      if (s.streamId !== playerStreamId) {
-        showMessage('');
-        load(s.streamId);
-      }
+      if (s.streamId !== playerStreamId) load(s.streamId);
     } else if (s.status === 'starting') {
-      setStatus('tuning…', 'warn');
+      setStatus('tuning', 'warn');
       if (playerStreamId && s.streamId !== playerStreamId) unload();
-      showMessage(`Tuning to ${s.channel.number} ${s.channel.name}…`);
+      showOverlay({ title: `Tuning to ${s.channel.number} ${s.channel.name}`, text: 'Starting the encoder…', spinner: true });
     } else {
-      setStatus('stream error', 'err');
+      setStatus('error', 'err');
       unload();
-      showMessage(`Stream failed, retrying… ${s.error || ''}`);
+      showOverlay({ title: 'Stream failed, retrying…', text: s.error || '', error: true });
     }
   }
 
@@ -212,8 +336,7 @@
     video.load();
     mode = null;
     video.playbackRate = 1;
-    setSync('');
-    tapBtn.hidden = true;
+    setSync('idle');
   }
 
   function load(streamId) {
@@ -221,6 +344,7 @@
     playerStreamId = streamId;
     needsInitialSeek = true;
     const url = `/hls/${streamId}/stream.m3u8`;
+    showOverlay({ title: 'Loading…', text: '', spinner: true });
 
     // iOS Safari plays HLS natively and exposes getStartDate() for wall-clock mapping. Everywhere
     // else we use hls.js: recent Chromium also claims native HLS support ("maybe") but has no
@@ -257,7 +381,7 @@
       hls.attachMedia(video);
     } else {
       setStatus('unsupported', 'err');
-      showMessage('This browser cannot play HLS video.');
+      showOverlay({ title: 'Unsupported browser', text: 'This browser cannot play HLS video.', error: true });
       return;
     }
     tryPlay();
@@ -266,12 +390,19 @@
   function tryPlay() {
     const p = video.play();
     if (p && p.catch) {
-      p.then(() => { tapBtn.hidden = true; }).catch(() => { tapBtn.hidden = false; });
+      p.then(() => { tapBtn.hidden = true; }).catch(() => {
+        showOverlay({ title: state && state.channel ? `${state.channel.number} ${state.channel.name}` : '', text: '', icon: false });
+        tapBtn.hidden = false;
+      });
     }
   }
   tapBtn.addEventListener('click', () => {
     tapBtn.hidden = true;
     tryPlay();
+  });
+
+  video.addEventListener('playing', () => {
+    if (playerStreamId) hideOverlay();
   });
 
   // ---- Sync loop -------------------------------------------------------------
@@ -308,7 +439,7 @@
     if (!playerStreamId || !state || state.status !== 'live') return;
     const r = getRange();
     if (!r || video.readyState < 1) {
-      setSync('buffering…');
+      setSync('buffering', 'warn');
       return;
     }
 
@@ -325,7 +456,7 @@
       if (!video.paused) video.pause();
       holding = true;
       video.playbackRate = 1;
-      setSync('waiting for sync point…', 'warn');
+      setSync('waiting for sync point', 'warn');
       return;
     }
 
@@ -338,7 +469,7 @@
     }
 
     if (video.paused) {
-      setSync('paused — press play to rejoin in sync');
+      setSync('paused', '', 'press play to rejoin in sync');
       return;
     }
 
@@ -348,7 +479,7 @@
       needsInitialSeek = false;
       video.currentTime = target;
       video.playbackRate = 1;
-      setSync('re-syncing…', 'warn');
+      setSync('syncing', 'warn');
       return;
     }
 
@@ -357,11 +488,11 @@
 
     const inSync = Math.abs(err) < 0.3;
     const sign = err >= 0 ? '+' : '−';
-    setSync(
-      `${inSync ? 'in sync' : 'syncing'} · offset ${sign}${Math.abs(err).toFixed(2)}s · ` +
-        `target ${targetLatency}s behind live${capped ? ' (encoder lagging)' : ''}${rate !== 1 ? ` · rate ${rate.toFixed(2)}×` : ''}`,
-      inSync ? 'ok' : 'warn'
-    );
+    const detail =
+      `${sign}${Math.abs(err).toFixed(2)}s · ${targetLatency}s behind live` +
+      (capped ? ' · encoder lagging' : '') +
+      (rate !== 1 ? ` · ${rate.toFixed(2)}×` : '');
+    setSync(inSync ? 'in sync' : 'syncing', inSync ? 'ok' : 'warn', detail);
   }
 
   function clamp(v, lo, hi) {
@@ -381,4 +512,13 @@
   // ---- Boot ------------------------------------------------------------------
   connect();
   loadChannels(false);
+
+  // Debug hook for previewing the UI without a server.
+  window.__dtv = {
+    setChannels(list) {
+      channels = list;
+      renderChannels();
+    },
+    applyState,
+  };
 })();
