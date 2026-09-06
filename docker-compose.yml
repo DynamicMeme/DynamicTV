@@ -1,0 +1,34 @@
+services:
+  dynamictv:
+    build: .
+    container_name: dynamictv
+    restart: unless-stopped
+    init: true
+    ports:
+      - "8080:8080"
+    environment:
+      # IP or hostname of your HDHomeRun. Leave empty to auto-discover via SiliconDust's
+      # discovery service (needs internet; finds tuners on the same public IP).
+      HDHR_HOST: ${HDHR_HOST:-}
+      # Output height (720 is a good CPU/quality trade-off; 0 keeps the broadcast resolution).
+      VIDEO_HEIGHT: ${VIDEO_HEIGHT:-720}
+      VIDEO_BITRATE: ${VIDEO_BITRATE:-4000k}
+      X264_PRESET: ${X264_PRESET:-veryfast}
+      # Seconds behind the encoder clock that every device plays at. Lower = less delay,
+      # higher = more buffer safety on flaky Wi-Fi. Must stay a few seconds above SEGMENT_SECONDS*2.
+      TARGET_LATENCY: ${TARGET_LATENCY:-6}
+      # Channel number to tune automatically when the container starts (optional), e.g. "5.1".
+      AUTO_TUNE: ${AUTO_TUNE:-}
+      # Set to 1 to add a built-in test-pattern channel (no tuner needed).
+      DEMO_CHANNEL: ${DEMO_CHANNEL:-0}
+      # Optional full override of the ffmpeg video encoder arguments (see README for VAAPI/NVENC).
+      FFMPEG_VIDEO_ARGS: ${FFMPEG_VIDEO_ARGS:-}
+    # HLS segments live in RAM; nothing is written to disk (~35 MB in use at 4 Mbps).
+    volumes:
+      - type: tmpfs
+        target: /tmp/hls
+        tmpfs:
+          size: 256m
+    # For VAAPI hardware encoding (Intel/AMD iGPU) uncomment:
+    # devices:
+    #   - /dev/dri:/dev/dri

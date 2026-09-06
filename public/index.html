@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#101418">
+  <title>DynamicTV</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <div class="brand">DynamicTV</div>
+    <div id="now-playing" class="now-playing">Not tuned</div>
+    <div id="status" class="pill">connecting…</div>
+  </header>
+
+  <main>
+    <section class="player">
+      <div class="video-wrap">
+        <video id="video" controls playsinline preload="auto"></video>
+        <button id="tap" class="overlay" hidden>▶&nbsp; Tap to play</button>
+        <div id="message" class="message" hidden></div>
+      </div>
+      <div class="under-video">
+        <div id="sync" class="sync"></div>
+        <button id="stop" class="stop" title="Stop the shared stream on every device">Stop</button>
+      </div>
+    </section>
+
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <h2>Channels</h2>
+        <button id="refresh" class="link" title="Reload lineup from the HDHomeRun">refresh</button>
+      </div>
+      <p class="hint">One shared stream: changing the channel here changes it on every device.</p>
+      <div id="channels" class="channels"><div class="hint">Loading lineup…</div></div>
+    </aside>
+  </main>
+
+  <script src="/vendor/hls.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
