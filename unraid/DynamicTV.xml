@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>DynamicTV</Name>
+  <Repository>ghcr.io/dynamicmeme/dynamictv:latest</Repository>
+  <Registry>https://github.com/DynamicMeme/DynamicTV/pkgs/container/dynamictv</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/DynamicMeme/DynamicTV/issues</Support>
+  <Project>https://github.com/DynamicMeme/DynamicTV</Project>
+  <Overview>Watch your HDHomeRun from any browser on the network. One shared stream, transcoded once to HLS, kept in sync across every device so you can move from room to room without losing your place.</Overview>
+  <Category>MediaServer:Video</Category>
+  <WebUI>http://[IP]:[PORT:8080]</WebUI>
+  <ExtraParams>--init --tmpfs /tmp/hls:size=256m</ExtraParams>
+  <Config Name="Web UI port" Target="8080" Default="8080" Mode="tcp" Description="Port the player is served on." Type="Port" Display="always" Required="true" Mask="false">8080</Config>
+  <Config Name="HDHomeRun IP" Target="HDHR_HOST" Default="" Mode="" Description="IP address of your HDHomeRun tuner, e.g. 192.168.1.50. Leave blank to auto-discover via SiliconDust's service (needs internet)." Type="Variable" Display="always" Required="false" Mask="false"></Config>
+  <Config Name="Video height" Target="VIDEO_HEIGHT" Default="720" Mode="" Description="Output resolution height. 720 is a good CPU/quality balance, 1080 for full quality, 480 for weak hardware, 0 to keep the broadcast resolution." Type="Variable" Display="always" Required="false" Mask="false">720</Config>
+  <Config Name="Target latency (s)" Target="TARGET_LATENCY" Default="6" Mode="" Description="Seconds behind the encoder every device plays. Raise to 8-10 on flaky Wi-Fi." Type="Variable" Display="always" Required="false" Mask="false">6</Config>
+  <Config Name="Auto-tune channel" Target="AUTO_TUNE" Default="" Mode="" Description="Channel to tune when the container starts, e.g. 5.1. Leave blank to start idle." Type="Variable" Display="always" Required="false" Mask="false"></Config>
+  <Config Name="x264 preset" Target="X264_PRESET" Default="veryfast" Mode="" Description="Encoder speed. Use superfast or ultrafast if the CPU cannot keep up." Type="Variable" Display="advanced" Required="false" Mask="false">veryfast</Config>
+  <Config Name="Video bitrate" Target="VIDEO_BITRATE" Default="4000k" Mode="" Description="Maximum video bitrate." Type="Variable" Display="advanced" Required="false" Mask="false">4000k</Config>
+  <Config Name="Demo channel" Target="DEMO_CHANNEL" Default="0" Mode="" Description="Set to 1 to add a built-in test pattern channel (works without a tuner)." Type="Variable" Display="advanced" Required="false" Mask="false">0</Config>
+  <Config Name="ffmpeg video args override" Target="FFMPEG_VIDEO_ARGS" Default="" Mode="" Description="Replaces the software encoder chain, e.g. for VAAPI or NVENC. See the README." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Intel/AMD GPU (VAAPI)" Target="/dev/dri" Default="" Mode="" Description="Set to /dev/dri to pass the iGPU through for hardware encoding, and fill in the ffmpeg override above." Type="Device" Display="advanced" Required="false" Mask="false"></Config>
+</Container>

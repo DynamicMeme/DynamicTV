@@ -1,5 +1,7 @@
 services:
   dynamictv:
+    # Pre-built image from GitHub Actions; `docker compose up --build` still builds locally.
+    image: ghcr.io/dynamicmeme/dynamictv:latest
     build: .
     container_name: dynamictv
     restart: unless-stopped

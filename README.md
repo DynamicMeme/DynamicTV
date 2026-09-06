@@ -32,6 +32,38 @@ the first time, then everyone who opens the page joins at the shared position.
 
 To see it work without a tuner, set `DEMO_CHANNEL=1` and pick "Test pattern".
 
+### Pre-built image
+
+Every push to `main` builds `ghcr.io/dynamicmeme/dynamictv:latest` (amd64 and arm64) via GitHub
+Actions. Use it instead of building locally:
+
+```bash
+docker run -d --name dynamictv --init --restart unless-stopped \
+  -p 8080:8080 -e HDHR_HOST=192.168.1.50 \
+  --tmpfs /tmp/hls:size=256m ghcr.io/dynamicmeme/dynamictv:latest
+```
+
+## Unraid
+
+1. On GitHub, wait for the "Build and publish image" action to finish, then make sure the package
+   is public: repo page, **Packages**, `dynamictv`, **Package settings**, **Change visibility**.
+   (Unraid can only pull public images without a registry login.)
+2. Copy [`unraid/DynamicTV.xml`](unraid/DynamicTV.xml) onto the Unraid flash drive at
+   `/boot/config/plugins/dockerMan/templates-user/my-DynamicTV.xml`. The `flash` SMB share
+   exposes that path as `config\plugins\dockerMan\templates-user`.
+3. In the Unraid web UI open **Docker**, click **Add Container**, and choose **DynamicTV** from
+   the **Template** dropdown (under "User templates").
+4. Fill in **HDHomeRun IP**, adjust the port if 8080 is taken, and click **Apply**.
+5. Click the container icon and choose **WebUI**.
+
+Without the template, the same thing by hand in **Add Container**: Repository
+`ghcr.io/dynamicmeme/dynamictv:latest`, a port mapping for 8080, a variable `HDHR_HOST`, and
+`--init --tmpfs /tmp/hls:size=256m` in **Extra Parameters** (Advanced View).
+
+For Intel/AMD hardware encoding on Unraid, set the **Intel/AMD GPU (VAAPI)** device to `/dev/dri`
+in the template and fill in the VAAPI line from the hardware encoding section below. Unraid's
+Intel GPU TOP plugin loads the `i915` driver needed for that.
+
 ## Configuration
 
 All settings are environment variables (see `docker-compose.yml` / `.env.example`).

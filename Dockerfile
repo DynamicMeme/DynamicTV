@@ -2,6 +2,9 @@
 # Debian-based so the stock ffmpeg has libx264, aac, VAAPI and (on most builds) NVENC.
 FROM node:20-bookworm-slim
 
+LABEL org.opencontainers.image.source="https://github.com/DynamicMeme/DynamicTV" \
+      org.opencontainers.image.description="HDHomeRun to HLS web player with synchronized playback across devices"
+
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
  && rm -rf /var/lib/apt/lists/*
