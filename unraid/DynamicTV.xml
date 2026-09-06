@@ -21,5 +21,4 @@
   <Config Name="Video bitrate" Target="VIDEO_BITRATE" Default="4000k" Mode="" Description="Maximum video bitrate." Type="Variable" Display="advanced" Required="false" Mask="false">4000k</Config>
   <Config Name="Demo channel" Target="DEMO_CHANNEL" Default="0" Mode="" Description="Set to 1 to add a built-in test pattern channel (works without a tuner)." Type="Variable" Display="advanced" Required="false" Mask="false">0</Config>
   <Config Name="ffmpeg video args override" Target="FFMPEG_VIDEO_ARGS" Default="" Mode="" Description="Replaces the software encoder chain, e.g. for VAAPI or NVENC. See the README." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
-  <Config Name="Intel/AMD GPU (VAAPI)" Target="/dev/dri" Default="" Mode="" Description="Set to /dev/dri to pass the iGPU through for hardware encoding, and fill in the ffmpeg override above." Type="Device" Display="advanced" Required="false" Mask="false"></Config>
 </Container>

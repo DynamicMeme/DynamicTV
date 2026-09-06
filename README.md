@@ -60,9 +60,11 @@ Without the template, the same thing by hand in **Add Container**: Repository
 `ghcr.io/dynamicmeme/dynamictv:latest`, a port mapping for 8080, a variable `HDHR_HOST`, and
 `--init --tmpfs /tmp/hls:size=256m` in **Extra Parameters** (Advanced View).
 
-For Intel/AMD hardware encoding on Unraid, set the **Intel/AMD GPU (VAAPI)** device to `/dev/dri`
-in the template and fill in the VAAPI line from the hardware encoding section below. Unraid's
-Intel GPU TOP plugin loads the `i915` driver needed for that.
+For Intel/AMD hardware encoding on Unraid, click **Add another Path, Port, Variable, Label or
+Device** in the container settings, choose **Device** with value `/dev/dri`, and fill in the VAAPI
+line from the hardware encoding section below in the ffmpeg override field. Unraid's Intel GPU TOP
+plugin loads the `i915` driver needed for that. (The template deliberately has no blank device
+entry: Unraid passes an empty `--device=''`, which Docker rejects.)
 
 ## Configuration
 
